@@ -1,0 +1,25 @@
+{
+  "name": "csc-710-project-1-battleship",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/romanmgelman/CSC-710-Project-1-Battleship.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/romanmgelman/CSC-710-Project-1-Battleship/issues"
+  },
+  "homepage": "https://github.com/romanmgelman/CSC-710-Project-1-Battleship#readme",
+  "dependencies": {
+    "express": "^5.2.1",
+    "socket.io": "^4.8.3"
+  },
+  "description": ""
+}

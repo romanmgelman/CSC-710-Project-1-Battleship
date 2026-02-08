@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>LAN Battleship</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="client.js" defer></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Battleship</h1>
+        <h3 id="status">Connecting to server...</h3>
+        
+        <div class="boards">
+            <div class="board-wrapper">
+                <h3>Your Fleet</h3>
+                <div id="user-grid" class="grid"></div>
+            </div>
+            <div class="board-wrapper">
+                <h3>Enemy Waters</h3>
+                <div id="enemy-grid" class="grid"></div>
+            </div>
+        </div>
+
+        <div id="game-log" class="log-box">
+            <p>Welcome to Battleship.</p>
+        </div>
+    </div>
+</body>
+</html>
