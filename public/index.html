@@ -2,16 +2,33 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>LAN Battleship</title>
+    <title>Battleship</title>
     <link rel="stylesheet" href="style.css">
     <script src="/socket.io/socket.io.js"></script>
     <script src="client.js" defer></script>
 </head>
 <body>
     <div class="container">
-        <h1>Battleship</h1>
-        <h3 id="status">Connecting to server...</h3>
+        <h1>LAN Battleship</h1>
+        <h3 id="status">Connecting...</h3>
         
+        <div id="setup-panel" class="hidden">
+            <label>Ships:</label>
+            <select id="ship-count">
+                <option value="1">1 Ship</option>
+                <option value="2">2 Ships</option>
+                <option value="3">3 Ships</option>
+                <option value="4">4 Ships</option>
+                <option value="5" selected>5 Ships</option>
+            </select>
+            <button id="start-setup-btn">Configure Game</button>
+        </div>
+
+        <div id="placement-controls" class="hidden">
+            <p id="placement-instruction">Place your Size 1 Ship</p>
+            <button id="rotate-btn">Rotate: Horizontal</button>
+        </div>
+
         <div class="boards">
             <div class="board-wrapper">
                 <h3>Your Fleet</h3>

@@ -9,63 +9,82 @@ const io = new Server(server);
 app.use(express.static('public'));
 
 let waitingPlayer = null;
+const roomData = {}; // Store room state: { readyCount: 0 }
 
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
+    // --- MATCHMAKING ---
     if (waitingPlayer) {
-        // Match matchmaking
+        if (!waitingPlayer.connected) {
+            waitingPlayer = socket;
+            return;
+        }
+
         const roomName = `${waitingPlayer.id}#${socket.id}`;
         socket.join(roomName);
         waitingPlayer.join(roomName);
-
-        // Assign Roles
-        io.to(waitingPlayer.id).emit('player-number', 0); // Player 1
-        io.to(socket.id).emit('player-number', 1);       // Player 2
         
-        // Start Game
-        io.to(roomName).emit('game-start');
+        // Initialize Room Data
+        roomData[roomName] = { readyCount: 0 };
+
+        io.to(waitingPlayer.id).emit('player-number', 0); // Host
+        io.to(socket.id).emit('player-number', 1);       // Guest
+        
+        io.to(roomName).emit('players-connected');
         waitingPlayer = null;
     } else {
         waitingPlayer = socket;
     }
 
-    // Fire Logic
+    // --- PHASE 1: HOST CONFIGURES GAME ---
+    socket.on('setup-game', (shipCount) => {
+        const rooms = Array.from(socket.rooms);
+        const gameRoom = rooms.find(r => r !== socket.id);
+        if(gameRoom) {
+            // Tell both players to start placing ships
+            io.in(gameRoom).emit('enter-placement-mode', shipCount);
+        }
+    });
+
+    // --- PHASE 2: PLAYERS READY ---
+    socket.on('player-ready', () => {
+        const rooms = Array.from(socket.rooms);
+        const gameRoom = rooms.find(r => r !== socket.id);
+        
+        if(gameRoom && roomData[gameRoom]) {
+            roomData[gameRoom].readyCount++;
+            
+            // If both players are ready, START!
+            if (roomData[gameRoom].readyCount === 2) {
+                io.in(gameRoom).emit('game-start');
+            }
+        }
+    });
+
+    // --- PHASE 3: BATTLE ---
     socket.on('fire', (id) => {
         const rooms = Array.from(socket.rooms);
         const gameRoom = rooms.find(r => r !== socket.id);
-        if(gameRoom) {
-            socket.to(gameRoom).emit('opponent-fire', id);
-        }
+        if(gameRoom) socket.to(gameRoom).emit('opponent-fire', id);
     });
 
-    // Reply Logic
     socket.on('fire-reply', (data) => {
         const rooms = Array.from(socket.rooms);
         const gameRoom = rooms.find(r => r !== socket.id);
-        if(gameRoom) {
-            socket.to(gameRoom).emit('fire-reply', data);
-        }
+        if(gameRoom) socket.to(gameRoom).emit('fire-reply', data);
     });
 
-    // --- CRITICAL FIX: Handle Disconnects Correctly ---
+    // --- CLEANUP ---
     socket.on('disconnecting', () => {
-        // If the WAITING player leaves, just clear the queue
-        if (waitingPlayer === socket) {
-            waitingPlayer = null;
-        } else {
-            // If an ACTIVE player leaves, notify ONLY their opponent
-            const rooms = Array.from(socket.rooms);
-            rooms.forEach(room => {
-                if (room !== socket.id) {
-                    socket.to(room).emit('player-disconnected');
-                }
-            });
-        }
-    });
-
-    socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
+        if (waitingPlayer === socket) waitingPlayer = null;
+        const rooms = Array.from(socket.rooms);
+        rooms.forEach(room => {
+            if (room !== socket.id) {
+                socket.to(room).emit('player-disconnected');
+                delete roomData[room]; // Clean up memory
+            }
+        });
     });
 });
 

@@ -1,102 +1,33 @@
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #f8f9fa;
-    text-align: center;
-    margin: 0;
-    padding: 20px;
-}
+/* ... Keep previous layout styles ... */
+body { font-family: 'Segoe UI', sans-serif; text-align: center; padding: 20px; background: #f8f9fa; }
+.container { display: flex; flex-direction: column; align-items: center; max-width: 1000px; margin: 0 auto; }
+.boards { display: flex; gap: 60px; margin-top: 30px; justify-content: center; flex-wrap: wrap; }
 
-.container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    max-width: 1000px;
-    margin: 0 auto;
-}
+/* Grid */
+.grid { display: grid; grid-template-columns: 30px repeat(10, 35px); grid-template-rows: 30px repeat(10, 35px); width: max-content; border: none; user-select: none; }
+.grid div { width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.label { background: transparent; color: #555; font-weight: bold; border: none; pointer-events: none; }
+.cell { background: white; border: 1px solid #999; position: relative; z-index: 5; }
 
-h1 { margin-bottom: 0; color: #333; }
-h3 { margin-top: 5px; color: #666; }
+/* Interaction Styles */
+#enemy-grid .cell:hover { background: #d1e7dd; cursor: crosshair; border: 2px solid #333; }
 
-.boards {
-    display: flex;
-    gap: 60px;
-    margin-top: 30px;
-    flex-wrap: wrap;
-    justify-content: center;
-}
-
-/* --- GRID LAYOUT --- */
-.grid {
-    display: grid;
-    /* 1 Col for labels (30px) + 10 Cols for game (35px) */
-    grid-template-columns: 30px repeat(10, 35px);
-    grid-template-rows: 30px repeat(10, 35px);
-    
-    /* Ensure grid fits content exactly */
-    width: max-content; 
-    height: max-content;
-    
-    border: none; 
-    user-select: none;
-}
-
-.grid div {
-    width: 35px;
-    height: 35px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    box-sizing: border-box;
-}
-
-/* --- LABELS (The Fix) --- */
-.label {
-    background: transparent;
-    color: #555;
-    font-weight: bold;
-    font-family: monospace;
-    border: none;
-    
-    /* CRITICAL: Allows clicks to pass through letters/numbers to the cell below */
-    pointer-events: none; 
-}
-
-/* --- CELLS --- */
-.cell {
-    background-color: #fff;
-    border: 1px solid #999;
-    position: relative;
-    z-index: 5; /* Ensure cells are clickable */
-}
-
-/* Hover Effect (Enemy Board) */
-#enemy-grid .cell:hover {
-    background-color: #d1e7dd;
-    cursor: crosshair;
-    border: 2px solid #333;
-}
+/* PLACEMENT PHASE STYLES */
+.valid-hover { background-color: #a8e6cf !important; border: 2px solid #28a745; }
+.invalid-hover { background-color: #ff8b94 !important; border: 2px solid #dc3545; }
 
 /* Game States */
-.ship { background-color: #444; }
-.hit { background-color: #e74c3c !important; } /* Red */
-.miss { background-color: #3498db !important; } /* Blue */
+.ship { background: #444; }
+.hit { background: #e74c3c !important; }
+.miss { background: #3498db !important; }
 
-/* Log Box */
-.log-box {
-    margin-top: 30px;
-    width: 100%;
-    max-width: 700px;
-    height: 150px;
-    border: 1px solid #ccc;
-    background: #fff;
-    overflow-y: scroll;
-    padding: 10px;
-    text-align: left;
-    font-family: monospace;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-}
+/* Panels */
+.hidden { display: none !important; }
+#setup-panel, #placement-controls { background: #e9ecef; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #dee2e6; }
+button { padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; margin-left: 10px; }
+button:hover { background: #0056b3; }
 
+.log-box { margin-top: 30px; width: 100%; max-width: 700px; height: 150px; border: 1px solid #ccc; background: #fff; overflow-y: scroll; padding: 10px; text-align: left; font-family: monospace; }
 .log-box p { margin: 4px 0; border-bottom: 1px solid #eee; }
 .log-alert { color: #c0392b; font-weight: bold; }
 .log-success { color: #2e7d32; font-weight: bold; }
