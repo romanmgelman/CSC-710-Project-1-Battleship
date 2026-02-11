@@ -1,7 +1,8 @@
 # CSC-710-Project-1-Battleship
 
-To run, open a terminal in the project directory and run:
-
+To run, clone the repository, open a terminal in the project directory and run:
+```npm i```
+then finally
 ```node server.js```
 
 Then open a browser and navigate to:
