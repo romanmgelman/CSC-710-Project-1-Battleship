@@ -298,51 +298,78 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('opponent-fire', (id) => {
-        if (isGameOver) return;
-        const square = userSquares[id];
-        const coord = getCoordinate(id);
-        let result = 'miss';
-        let sunkShipSize = null;
+    if (isGameOver) return;
+    const square = userSquares[id];
+    const coord = getCoordinate(id);
+    let result = 'miss';
+    let sunkShipSize = null;
 
-        if (square.classList.contains('ship')) {
-            square.classList.add('hit');
-            result = 'hit';
-            
-            const ship = myShips.find(s => s.location.includes(parseInt(id)));
-            if (ship) {
-                ship.hits++;
-                if (ship.hits === ship.size) {
-                    result = 'sunk';
-                    sunkShipSize = ship.size;
-                    addLog(`CRITICAL: Size-${ship.size} ship sunk at ${coord}!`, "log-alert");
-                } else {
-                    addLog(`Hit taken at ${coord}!`, "log-alert");
-                }
-            }
-        } else {
-            square.classList.add('miss');
-            addLog(`Opponent missed at ${coord}.`);
-        }
-        socket.emit('fire-reply', { result, id, sunkShipSize });
+    if (square.classList.contains('ship')) {
+        square.classList.add('hit');
+        result = 'hit';
         
-        currentPlayer = 'user';
-        statusDisplay.innerHTML = "YOUR TURN";
-        statusDisplay.style.color = "green";
-    });
+        const ship = myShips.find(s => s.location.includes(parseInt(id)));
+        if (ship) {
+            ship.hits++;
+            if (ship.hits === ship.size) {
+                result = 'sunk';
+                sunkShipSize = ship.size;
+                addLog(`CRITICAL: Size-${ship.size} ship sunk at ${coord}!`, "log-alert");
+            } else {
+                addLog(`Hit taken at ${coord}!`, "log-alert");
+            }
+        }
+    } else {
+        square.classList.add('miss');
+        addLog(`Opponent missed at ${coord}.`);
+    }
+    
+    // Check if all of my ships have been sunk
+    const allSunk = myShips.every(ship => ship.hits === ship.size);
+    
+    if (allSunk) {
+        isGameOver = true;
+        statusDisplay.innerHTML = "DEFEAT - All Ships Destroyed";
+        statusDisplay.style.color = "red";
+        addLog("═══════════════════════════════", "log-alert");
+        addLog("ALL YOUR SHIPS DESTROYED!", "log-alert");
+        addLog("YOU LOST THE BATTLE", "log-alert");
+        addLog("═══════════════════════════════", "log-alert");
+        socket.emit('fire-reply', { result, id, sunkShipSize, gameOver: true, winner: 'enemy' });
+        return; 
+    }
+    
+    socket.emit('fire-reply', { result, id, sunkShipSize });
+    
+    currentPlayer = 'user';
+    statusDisplay.innerHTML = "YOUR TURN";
+    statusDisplay.style.color = "green";
+});
 
     socket.on('fire-reply', (data) => {
-        const square = enemySquares[data.id];
-        const coord = getCoordinate(data.id);
-        if (data.result === 'hit' || data.result === 'sunk') {
-            square.classList.add('hit');
-            if (data.result === 'sunk') {
-                addLog(`TARGET DESTROYED at ${coord}!`, "log-success");
-            } else {
-                addLog(`Direct HIT at ${coord}!`, "log-success");
-            }
+    const square = enemySquares[data.id];
+    const coord = getCoordinate(data.id);
+    
+    if (data.result === 'hit' || data.result === 'sunk') {
+        square.classList.add('hit');
+        if (data.result === 'sunk') {
+            addLog(`TARGET DESTROYED at ${coord}! Size-${data.sunkShipSize} ship eliminated!`, "log-success");
         } else {
-            square.classList.add('miss');
-            addLog(`Shot missed at ${coord}.`);
+            addLog(`Direct HIT at ${coord}!`, "log-success");
         }
-    });
+    } else {
+        square.classList.add('miss');
+        addLog(`Shot missed at ${coord}.`);
+    }
+    
+    if (data.gameOver && data.winner === 'enemy') {
+        isGameOver = true;
+        statusDisplay.innerHTML = "VICTORY - Enemy Fleet Destroyed!";
+        statusDisplay.style.color = "green";
+        addLog("═══════════════════════════════", "log-success");
+        addLog("ALL ENEMY SHIPS DESTROYED!", "log-success");
+        addLog("YOU WON THE BATTLE!", "log-success");
+        addLog("═══════════════════════════════", "log-success");
+    }
+});
 });
