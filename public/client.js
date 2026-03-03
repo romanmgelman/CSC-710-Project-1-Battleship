@@ -18,6 +18,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const width = 10;
     const userSquares = [];
     const enemySquares = [];
+
+    // Rematch UI
+    const rematchPanel = document.querySelector('#rematch-panel');
+    const playAgainBtn = document.querySelector('#play-again-btn');
     
     // GAME STATE
     let isGameOver = false;
@@ -39,6 +43,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (className) p.classList.add(className);
         logBox.appendChild(p);
         logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    function showPlayAgain() {
+        rematchPanel.classList.remove('hidden');
+    }
+
+    function hidePlayAgain() {
+        rematchPanel.classList.add('hidden');
     }
 
     function getCoordinate(index) {
@@ -150,6 +162,13 @@ document.addEventListener('DOMContentLoaded', () => {
             renderGhostShip(lastHoveredCell);
         }
     }
+
+    // Play Again Button
+    playAgainBtn.addEventListener('click', () => {
+        hidePlayAgain();
+        addLog("Rematch requested. Waiting for opponent...");
+        socket.emit('request-rematch');
+    });
 
     rotateBtn.addEventListener('click', toggleRotation);
 
@@ -335,6 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
         addLog("ALL YOUR SHIPS DESTROYED!", "log-alert");
         addLog("YOU LOST THE BATTLE", "log-alert");
         addLog("═══════════════════════════════", "log-alert");
+        showPlayAgain();
         socket.emit('fire-reply', { result, id, sunkShipSize, gameOver: true, winner: 'enemy' });
         return; 
     }
@@ -362,7 +382,7 @@ document.addEventListener('DOMContentLoaded', () => {
         addLog(`Shot missed at ${coord}.`);
     }
     
-    if (data.gameOver && data.winner === 'enemy') {
+    if (data.gameOver && data.winner === 'user') {
         isGameOver = true;
         statusDisplay.innerHTML = "VICTORY - Enemy Fleet Destroyed!";
         statusDisplay.style.color = "green";
@@ -370,6 +390,54 @@ document.addEventListener('DOMContentLoaded', () => {
         addLog("ALL ENEMY SHIPS DESTROYED!", "log-success");
         addLog("YOU WON THE BATTLE!", "log-success");
         addLog("═══════════════════════════════", "log-success");
+        showPlayAgain();
     }
 });
+
+socket.on('rematch-requested', () => {
+    statusDisplay.innerHTML = "Rematch requested... waiting for opponent";
+    statusDisplay.style.color = "orange";
+});
+
+socket.on('rematch-waiting', () => {
+    addLog("Opponent wants a rematch. Click Play Again to accept.", "log-alert");
+    showPlayAgain();
+});
+
+socket.on('rematch-start', () => {
+    // Reset game state
+    isGameOver = false;
+    gamePhase = 'waiting';
+    currentPlayer = 'user';
+
+    // Clear boards
+    userSquares.forEach(sq => sq.className = 'cell');
+    enemySquares.forEach(sq => sq.className = 'cell');
+
+    // Reset ships / placement state
+    myShips = [];
+    shipsToPlace = [];
+    currentPlaceIndex = 0;
+    isHorizontal = true;
+    lastHoveredCell = null;
+
+    // Reset UI
+    hidePlayAgain();
+    placementControls.classList.add('hidden'); 
+    statusDisplay.style.color = "";
+    instructionText.innerText = "";
+    rotateBtn.innerText = "Rotate: Horizontal (R)";
+
+    // Host configures again, guest waits
+    if (playerNum === 0) {
+        setupPanel.classList.remove('hidden');
+        statusDisplay.innerHTML = "You are the HOST. Choose ships and Configure Game.";
+    } else {
+        setupPanel.classList.add('hidden');
+        statusDisplay.innerHTML = "Waiting for Host to configure...";
+    }
+
+    addLog("Rematch ready.");
+});
+
 });

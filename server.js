@@ -9,7 +9,7 @@ const io = new Server(server);
 app.use(express.static('public'));
 
 let waitingPlayer = null;
-const roomData = {}; // Store room state: { readyCount: 0 }
+const roomData = {};
 
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
@@ -26,7 +26,11 @@ io.on('connection', (socket) => {
         waitingPlayer.join(roomName);
         
         // Initialize Room Data
-        roomData[roomName] = { readyCount: 0 };
+        roomData[roomName] = {
+            readyCount: 0,
+            shipCount: 5,
+            rematchCount: 0
+        };
 
         io.to(waitingPlayer.id).emit('player-number', 0); // Host
         io.to(socket.id).emit('player-number', 1);       // Guest
@@ -39,13 +43,16 @@ io.on('connection', (socket) => {
 
     // --- PHASE 1: HOST CONFIGURES GAME ---
     socket.on('setup-game', (shipCount) => {
-        const rooms = Array.from(socket.rooms);
-        const gameRoom = rooms.find(r => r !== socket.id);
-        if(gameRoom) {
-            // Tell both players to start placing ships
-            io.in(gameRoom).emit('enter-placement-mode', shipCount);
-        }
-    });
+    const rooms = Array.from(socket.rooms);
+    const gameRoom = rooms.find(r => r !== socket.id);
+    if (gameRoom && roomData[gameRoom]) {
+        roomData[gameRoom].shipCount = parseInt(shipCount);
+        roomData[gameRoom].readyCount = 0;
+        roomData[gameRoom].rematchCount = 0;
+
+        io.in(gameRoom).emit('enter-placement-mode', parseInt(shipCount));
+    }
+});
 
     // --- PHASE 2: PLAYERS READY ---
     socket.on('player-ready', () => {
@@ -61,6 +68,27 @@ io.on('connection', (socket) => {
             }
         }
     });
+
+    socket.on('request-rematch', () => {
+        const rooms = Array.from(socket.rooms);
+        const gameRoom = rooms.find(r => r !== socket.id);
+
+        if (!gameRoom || !roomData[gameRoom]) return;
+
+        roomData[gameRoom].rematchCount++;
+
+        // When both players requested, reset and restart placement
+        if (roomData[gameRoom].rematchCount === 2) {
+            roomData[gameRoom].readyCount = 0;
+            roomData[gameRoom].rematchCount = 0;
+
+            const shipCount = roomData[gameRoom].shipCount ?? 5;
+            io.in(gameRoom).emit('rematch-start', shipCount);
+        } else {
+            socket.to(gameRoom).emit('rematch-waiting'); // tell opponent "other player wants rematch"
+            socket.emit('rematch-requested'); // tell requester "waiting..."
+        }
+});
 
     // --- PHASE 3: BATTLE ---
     socket.on('fire', (id) => {
