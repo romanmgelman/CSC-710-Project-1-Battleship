@@ -1,4 +1,21 @@
 document.addEventListener('DOMContentLoaded', () => {
+    function createBubbles() {
+        for (let i = 0; i < 15; i++) {
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            
+            const size = 8 + Math.random() * 30;
+            bubble.style.width = `${size}px`;
+            bubble.style.height = `${size}px`;
+            bubble.style.left = `${Math.random() * 100}%`;
+            bubble.style.animationDuration = `${12 + Math.random() * 18}s`;
+            bubble.style.animationDelay = `${Math.random() * 8}s`;
+            
+            document.body.appendChild(bubble);
+        }
+    }
+    
+    createBubbles();
     const socket = io();
     const userGrid = document.querySelector('#user-grid');
     const enemyGrid = document.querySelector('#enemy-grid');
@@ -58,6 +75,54 @@ document.addEventListener('DOMContentLoaded', () => {
         const row = Math.floor(index / width);
         const col = index % width;
         return `${letters[row]}${col + 1}`;
+    }
+
+    // EXPLOSION ANIMATION FUNCTION
+    function triggerExplosion(cell) {
+        cell.classList.add('explosion');
+        
+        // Add flying particles
+        for (let i = 0; i < 12; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'explosion-particle';
+            
+            const angle = (i / 12) * 2 * Math.PI;
+            const distance = 40 + Math.random() * 30;
+            const tx = Math.cos(angle) * distance;
+            const ty = Math.sin(angle) * distance;
+            
+            particle.style.animation = `particle-burst-${i} 0.6s ease-out`;
+            
+            // Create unique animation for each particle
+            const keyframes = `
+                @keyframes particle-burst-${i} {
+                    0% {
+                        transform: translate(0, 0) scale(1);
+                        opacity: 1;
+                    }
+                    100% {
+                        transform: translate(${tx}px, ${ty}px) scale(0);
+                        opacity: 0;
+                    }
+                }
+            `;
+            
+            const style = document.createElement('style');
+            style.textContent = keyframes;
+            document.head.appendChild(style);
+            
+            cell.appendChild(particle);
+            
+            setTimeout(() => {
+                particle.remove();
+                style.remove();
+            }, 600);
+        }
+        
+        cell.addEventListener('animationend', function handler() {
+            cell.classList.remove('explosion');
+            cell.removeEventListener('animationend', handler);
+        }, { once: true });
     }
 
     // --- 1. Create Boards ---
@@ -317,127 +382,129 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('opponent-fire', (id) => {
-    if (isGameOver) return;
-    const square = userSquares[id];
-    const coord = getCoordinate(id);
-    let result = 'miss';
-    let sunkShipSize = null;
+        if (isGameOver) return;
+        const square = userSquares[id];
+        const coord = getCoordinate(id);
+        let result = 'miss';
+        let sunkShipSize = null;
 
-    if (square.classList.contains('ship')) {
-        square.classList.add('hit');
-        result = 'hit';
-        
-        const ship = myShips.find(s => s.location.includes(parseInt(id)));
-        if (ship) {
-            ship.hits++;
-            if (ship.hits === ship.size) {
-                result = 'sunk';
-                sunkShipSize = ship.size;
-                addLog(`CRITICAL: Size-${ship.size} ship sunk at ${coord}!`, "log-alert");
-            } else {
-                addLog(`Hit taken at ${coord}!`, "log-alert");
+        if (square.classList.contains('ship')) {
+            square.classList.add('hit');
+            triggerExplosion(square); // EXPLOSION WHEN OPPONENT HITS YOUR SHIP
+            result = 'hit';
+            
+            const ship = myShips.find(s => s.location.includes(parseInt(id)));
+            if (ship) {
+                ship.hits++;
+                if (ship.hits === ship.size) {
+                    result = 'sunk';
+                    sunkShipSize = ship.size;
+                    addLog(`CRITICAL: Size-${ship.size} ship sunk at ${coord}!`, "log-alert");
+                } else {
+                    addLog(`Hit taken at ${coord}!`, "log-alert");
+                }
             }
+        } else {
+            square.classList.add('miss');
+            addLog(`Opponent missed at ${coord}.`);
         }
-    } else {
-        square.classList.add('miss');
-        addLog(`Opponent missed at ${coord}.`);
-    }
-    
-    // Check if all of my ships have been sunk
-    const allSunk = myShips.every(ship => ship.hits === ship.size);
-    
-    if (allSunk) {
-        isGameOver = true;
-        statusDisplay.innerHTML = "DEFEAT - All Ships Destroyed";
-        statusDisplay.style.color = "red";
-        addLog("═══════════════════════════════", "log-alert");
-        addLog("ALL YOUR SHIPS DESTROYED!", "log-alert");
-        addLog("YOU LOST THE BATTLE", "log-alert");
-        addLog("═══════════════════════════════", "log-alert");
-        showPlayAgain();
-        socket.emit('fire-reply', { result, id, sunkShipSize, gameOver: true, winner: 'enemy' });
-        return; 
-    }
-    
-    socket.emit('fire-reply', { result, id, sunkShipSize });
-    
-    currentPlayer = 'user';
-    statusDisplay.innerHTML = "YOUR TURN";
-    statusDisplay.style.color = "green";
-});
+        
+        // Check if all of my ships have been sunk
+        const allSunk = myShips.every(ship => ship.hits === ship.size);
+        
+        if (allSunk) {
+            isGameOver = true;
+            statusDisplay.innerHTML = "DEFEAT - All Ships Destroyed";
+            statusDisplay.style.color = "red";
+            addLog("═══════════════════════════════", "log-alert");
+            addLog("ALL YOUR SHIPS DESTROYED!", "log-alert");
+            addLog("YOU LOST THE BATTLE", "log-alert");
+            addLog("═══════════════════════════════", "log-alert");
+            showPlayAgain();
+            socket.emit('fire-reply', { result, id, sunkShipSize, gameOver: true, winner: 'enemy' });
+            return; 
+        }
+        
+        socket.emit('fire-reply', { result, id, sunkShipSize });
+        
+        currentPlayer = 'user';
+        statusDisplay.innerHTML = "YOUR TURN";
+        statusDisplay.style.color = "green";
+    });
 
     socket.on('fire-reply', (data) => {
-    const square = enemySquares[data.id];
-    const coord = getCoordinate(data.id);
-    
-    if (data.result === 'hit' || data.result === 'sunk') {
-        square.classList.add('hit');
-        if (data.result === 'sunk') {
-            addLog(`TARGET DESTROYED at ${coord}! Size-${data.sunkShipSize} ship eliminated!`, "log-success");
+        const square = enemySquares[data.id];
+        const coord = getCoordinate(data.id);
+        
+        if (data.result === 'hit' || data.result === 'sunk') {
+            square.classList.add('hit');
+            triggerExplosion(square); // EXPLOSION WHEN YOU HIT OPPONENT'S SHIP
+            if (data.result === 'sunk') {
+                addLog(`TARGET DESTROYED at ${coord}! Size-${data.sunkShipSize} ship eliminated!`, "log-success");
+            } else {
+                addLog(`Direct HIT at ${coord}!`, "log-success");
+            }
         } else {
-            addLog(`Direct HIT at ${coord}!`, "log-success");
+            square.classList.add('miss');
+            addLog(`Shot missed at ${coord}.`);
         }
-    } else {
-        square.classList.add('miss');
-        addLog(`Shot missed at ${coord}.`);
-    }
-    
-    if (data.gameOver && data.winner === 'user') {
-        isGameOver = true;
-        statusDisplay.innerHTML = "VICTORY - Enemy Fleet Destroyed!";
-        statusDisplay.style.color = "green";
-        addLog("═══════════════════════════════", "log-success");
-        addLog("ALL ENEMY SHIPS DESTROYED!", "log-success");
-        addLog("YOU WON THE BATTLE!", "log-success");
-        addLog("═══════════════════════════════", "log-success");
+        
+        if (data.gameOver && data.winner === 'enemy') {
+            isGameOver = true;
+            statusDisplay.innerHTML = "VICTORY - Enemy Fleet Destroyed!";
+            statusDisplay.style.color = "green";
+            addLog("═══════════════════════════════", "log-success");
+            addLog("ALL ENEMY SHIPS DESTROYED!", "log-success");
+            addLog("YOU WON THE BATTLE!", "log-success");
+            addLog("═══════════════════════════════", "log-success");
+            showPlayAgain();
+        }
+    });
+
+    socket.on('rematch-requested', () => {
+        statusDisplay.innerHTML = "Rematch requested... waiting for opponent";
+        statusDisplay.style.color = "orange";
+    });
+
+    socket.on('rematch-waiting', () => {
+        addLog("Opponent wants a rematch. Click Play Again to accept.", "log-alert");
         showPlayAgain();
-    }
-});
+    });
 
-socket.on('rematch-requested', () => {
-    statusDisplay.innerHTML = "Rematch requested... waiting for opponent";
-    statusDisplay.style.color = "orange";
-});
+    socket.on('rematch-start', () => {
+        // Reset game state
+        isGameOver = false;
+        gamePhase = 'waiting';
+        currentPlayer = 'user';
 
-socket.on('rematch-waiting', () => {
-    addLog("Opponent wants a rematch. Click Play Again to accept.", "log-alert");
-    showPlayAgain();
-});
+        // Clear boards
+        userSquares.forEach(sq => sq.className = 'cell');
+        enemySquares.forEach(sq => sq.className = 'cell');
 
-socket.on('rematch-start', () => {
-    // Reset game state
-    isGameOver = false;
-    gamePhase = 'waiting';
-    currentPlayer = 'user';
+        // Reset ships / placement state
+        myShips = [];
+        shipsToPlace = [];
+        currentPlaceIndex = 0;
+        isHorizontal = true;
+        lastHoveredCell = null;
 
-    // Clear boards
-    userSquares.forEach(sq => sq.className = 'cell');
-    enemySquares.forEach(sq => sq.className = 'cell');
+        // Reset UI
+        hidePlayAgain();
+        placementControls.classList.add('hidden'); 
+        statusDisplay.style.color = "";
+        instructionText.innerText = "";
+        rotateBtn.innerText = "Rotate: Horizontal (R)";
 
-    // Reset ships / placement state
-    myShips = [];
-    shipsToPlace = [];
-    currentPlaceIndex = 0;
-    isHorizontal = true;
-    lastHoveredCell = null;
+        // Host configures again, guest waits
+        if (playerNum === 0) {
+            setupPanel.classList.remove('hidden');
+            statusDisplay.innerHTML = "You are the HOST. Choose ships and Configure Game.";
+        } else {
+            setupPanel.classList.add('hidden');
+            statusDisplay.innerHTML = "Waiting for Host to configure...";
+        }
 
-    // Reset UI
-    hidePlayAgain();
-    placementControls.classList.add('hidden'); 
-    statusDisplay.style.color = "";
-    instructionText.innerText = "";
-    rotateBtn.innerText = "Rotate: Horizontal (R)";
-
-    // Host configures again, guest waits
-    if (playerNum === 0) {
-        setupPanel.classList.remove('hidden');
-        statusDisplay.innerHTML = "You are the HOST. Choose ships and Configure Game.";
-    } else {
-        setupPanel.classList.add('hidden');
-        statusDisplay.innerHTML = "Waiting for Host to configure...";
-    }
-
-    addLog("Rematch ready.");
-});
+        addLog("Rematch ready.");
+    });
 
 });
