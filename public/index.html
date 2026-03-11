@@ -12,8 +12,50 @@
         <h1>LAN Battleship</h1>
         <h3 id="status">Connecting...</h3>
         
+        <!-- GAME MODE SELECTION -->
+        <div id="mode-selection" class="hidden">
+            <h2>Select Game Mode</h2>
+            <div class="mode-buttons">
+                <button id="lan-mode-btn" class="mode-btn">
+                    <span class="mode-icon">🌐</span>
+                    <span class="mode-title">LAN Multiplayer</span>
+                    <span class="mode-desc">Play with a friend on the same network</span>
+                </button>
+                <button id="ai-mode-btn" class="mode-btn">
+                    <span class="mode-icon">🤖</span>
+                    <span class="mode-title">Single Player</span>
+                    <span class="mode-desc">Play against AI opponent</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- AI DIFFICULTY SELECTION -->
+        <div id="difficulty-selection" class="hidden">
+            <h2>Select Difficulty</h2>
+            <div class="difficulty-buttons">
+                <button id="easy-btn" class="difficulty-btn easy">
+                    <span class="difficulty-icon">😊</span>
+                    <span class="difficulty-title">Easy</span>
+                    <span class="difficulty-desc">Random shots, no strategy</span>
+                </button>
+                <button id="medium-btn" class="difficulty-btn medium">
+                    <span class="difficulty-icon">😐</span>
+                    <span class="difficulty-title">Medium</span>
+                    <span class="difficulty-desc">Hunts after hitting a ship</span>
+                </button>
+                <button id="hard-btn" class="difficulty-btn hard">
+                    <span class="difficulty-icon">😈</span>
+                    <span class="difficulty-title">Hard</span>
+                    <span class="difficulty-desc">Smart targeting algorithm</span>
+                </button>
+            </div>
+            <button id="back-to-mode-btn" class="back-btn">← Back to Mode Selection</button>
+        </div>
+
+        <!-- SHIP COUNT SELECTION -->
         <div id="setup-panel" class="hidden">
-            <label>Ships:</label>
+            <h2>Game Setup</h2>
+            <label>Number of Ships:</label>
             <select id="ship-count">
                 <option value="1">1 Ship</option>
                 <option value="2">2 Ships</option>
@@ -21,7 +63,8 @@
                 <option value="4">4 Ships</option>
                 <option value="5" selected>5 Ships</option>
             </select>
-            <button id="start-setup-btn">Configure Game</button>
+            <button id="start-setup-btn">Start Game</button>
+            <button id="back-to-difficulty-btn" class="back-btn">← Back</button>
         </div>
 
         <div id="placement-controls" class="hidden">
