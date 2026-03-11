@@ -184,32 +184,182 @@ h3 {
 }
 
 /* ========================================
+   GAME MODE & DIFFICULTY SELECTION
+   ======================================== */
+
+#mode-selection h2,
+#difficulty-selection h2,
+#setup-panel h2 {
+    color: #1e3a5f;
+    font-size: 2em;
+    margin-bottom: 30px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+}
+
+/* Mode Selection Buttons */
+.mode-buttons {
+    display: flex;
+    gap: 30px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.mode-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 50px;
+    background: linear-gradient(135deg, 
+        rgba(255, 255, 255, 0.95),
+        rgba(236, 240, 241, 0.95)
+    );
+    border: 3px solid rgba(52, 152, 219, 0.4);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+    min-width: 280px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.mode-btn:hover {
+    transform: translateY(-5px);
+    border-color: #3498db;
+    box-shadow: 0 12px 35px rgba(52, 152, 219, 0.4);
+    background: linear-gradient(135deg, #ffffff, #ecf0f1);
+}
+
+.mode-icon {
+    font-size: 4em;
+    margin-bottom: 15px;
+}
+
+.mode-title {
+    font-size: 1.5em;
+    font-weight: 700;
+    color: #2c3e50;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.mode-desc {
+    font-size: 0.95em;
+    color: #7f8c8d;
+    text-align: center;
+    font-weight: 400;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+/* Difficulty Selection Buttons */
+.difficulty-buttons {
+    display: flex;
+    gap: 25px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 30px;
+}
+
+.difficulty-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 35px 40px;
+    border: 3px solid;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+    min-width: 220px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.difficulty-btn.easy {
+    background: linear-gradient(135deg, #d5f4e6, #a8e6cf);
+    border-color: #52c788;
+}
+
+.difficulty-btn.easy:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 35px rgba(82, 199, 136, 0.5);
+    background: linear-gradient(135deg, #c8f7dc, #95dfc4);
+}
+
+.difficulty-btn.medium {
+    background: linear-gradient(135deg, #fff4d6, #ffeaa7);
+    border-color: #fdcb6e;
+}
+
+.difficulty-btn.medium:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 35px rgba(253, 203, 110, 0.5);
+    background: linear-gradient(135deg, #ffedcc, #ffe090);
+}
+
+.difficulty-btn.hard {
+    background: linear-gradient(135deg, #ffd7d7, #ffb3b3);
+    border-color: #ff7675;
+}
+
+.difficulty-btn.hard:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 35px rgba(255, 118, 117, 0.5);
+    background: linear-gradient(135deg, #ffc9c9, #ff9d9d);
+}
+
+.difficulty-icon {
+    font-size: 3.5em;
+    margin-bottom: 15px;
+}
+
+.difficulty-title {
+    font-size: 1.4em;
+    font-weight: 700;
+    color: #2c3e50;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.difficulty-desc {
+    font-size: 0.9em;
+    color: #34495e;
+    text-align: center;
+    font-weight: 400;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+/* Back Button */
+.back-btn {
+    background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+    font-size: 1em;
+    padding: 10px 25px;
+    margin-top: 20px;
+}
+
+.back-btn:hover {
+    background: linear-gradient(135deg, #7f8c8d, #6c7a89);
+}
+
+/* ========================================
    PANELS & CONTROLS
    ======================================== */
 
-#setup-panel, 
+#setup-panel,
 #placement-controls,
 #rematch-panel {
     background: linear-gradient(135deg,
-        rgba(255, 255, 255, 0.9),
-        rgba(236, 240, 241, 0.9)
+        rgba(255, 255, 255, 0.95),
+        rgba(236, 240, 241, 0.95)
     );
-    padding: 25px 35px;
+    padding: 35px 50px;
     border-radius: 20px;
     margin: 20px 0;
-    border: 2px solid rgba(52, 152, 219, 0.4);
-    box-shadow: 
-        0 8px 25px rgba(0, 0, 0, 0.15),
-        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    border: 3px solid rgba(52, 152, 219, 0.4);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
     transition: all 0.3s;
-}
-
-#setup-panel:hover,
-#placement-controls:hover {
-    transform: translateY(-2px);
-    box-shadow: 
-        0 12px 30px rgba(0, 0, 0, 0.2),
-        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    min-width: 400px;
 }
 
 #placement-instruction {
@@ -333,9 +483,7 @@ button:active {
 
 .board-wrapper {
     position: relative;
-    transition: transform 0.3s;
 }
-
 
 /* Grid container */
 .grid { 
