@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // CREATE OCEAN BUBBLES
     function createBubbles() {
         for (let i = 0; i < 15; i++) {
             const bubble = document.createElement('div');
@@ -16,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     createBubbles();
+
     const socket = io();
     const userGrid = document.querySelector('#user-grid');
     const enemyGrid = document.querySelector('#enemy-grid');
@@ -26,11 +28,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const setupPanel = document.querySelector('#setup-panel');
     const placementControls = document.querySelector('#placement-controls');
     const instructionText = document.querySelector('#placement-instruction');
+    const modeSelection = document.querySelector('#mode-selection');
+    const difficultySelection = document.querySelector('#difficulty-selection');
     
     // Buttons
     const shipSelect = document.querySelector('#ship-count');
     const startSetupBtn = document.querySelector('#start-setup-btn');
     const rotateBtn = document.querySelector('#rotate-btn');
+    const lanModeBtn = document.querySelector('#lan-mode-btn');
+    const aiModeBtn = document.querySelector('#ai-mode-btn');
+    const easyBtn = document.querySelector('#easy-btn');
+    const mediumBtn = document.querySelector('#medium-btn');
+    const hardBtn = document.querySelector('#hard-btn');
+    const backToModeBtn = document.querySelector('#back-to-mode-btn');
+    const backToDifficultyBtn = document.querySelector('#back-to-difficulty-btn');
 
     const width = 10;
     const userSquares = [];
@@ -44,14 +55,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let isGameOver = false;
     let currentPlayer = 'user';
     let playerNum = -1;
-    let gamePhase = 'waiting'; // 'waiting', 'placement', 'battle'
-    let myShips = []; 
+    let gamePhase = 'waiting';
+    let myShips = [];
+    let gameMode = null; // 'lan' or 'ai'
+    let aiDifficulty = null; // 'easy', 'medium', or 'hard'
     
     // PLACEMENT STATE
     let shipsToPlace = []; 
     let currentPlaceIndex = 0;
     let isHorizontal = true;
-    let lastHoveredCell = null; // Track mouse position for 'R' key rotation
+    let lastHoveredCell = null;
 
     // --- Helpers ---
     function addLog(msg, className) {
@@ -93,7 +106,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             particle.style.animation = `particle-burst-${i} 0.6s ease-out`;
             
-            // Create unique animation for each particle
             const keyframes = `
                 @keyframes particle-burst-${i} {
                     0% {
@@ -173,9 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return indices;
     }
 
-    // NEW: Centralized Ghost Ship Renderer
     function renderGhostShip(cell) {
-        // Clear previous highlights
         userSquares.forEach(sq => {
             sq.classList.remove('valid-hover', 'invalid-hover');
         });
@@ -204,11 +214,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Hover Event
     userGrid.addEventListener('mouseover', (e) => {
         if (gamePhase !== 'placement') return;
         const cell = e.target.closest('.cell');
-        lastHoveredCell = cell; // Remember this for 'R' key
+        lastHoveredCell = cell;
         renderGhostShip(cell);
     });
 
@@ -217,18 +226,15 @@ document.addEventListener('DOMContentLoaded', () => {
         userSquares.forEach(sq => sq.classList.remove('valid-hover', 'invalid-hover'));
     });
 
-    // NEW: Rotate Logic (Function for Button AND Key)
     function toggleRotation() {
         isHorizontal = !isHorizontal;
         rotateBtn.innerText = isHorizontal ? "Rotate: Horizontal (R)" : "Rotate: Vertical (R)";
         
-        // Instant visual update if mouse is currently over the grid
         if (lastHoveredCell) {
             renderGhostShip(lastHoveredCell);
         }
     }
 
-    // Play Again Button
     playAgainBtn.addEventListener('click', () => {
         hidePlayAgain();
         addLog("Rematch requested. Waiting for opponent...");
@@ -237,14 +243,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     rotateBtn.addEventListener('click', toggleRotation);
 
-    // NEW: Keyboard Event Listener
     document.addEventListener('keydown', (e) => {
         if (gamePhase === 'placement' && e.key.toLowerCase() === 'r') {
             toggleRotation();
         }
     });
 
-    // Place Ship Click
     userGrid.addEventListener('click', (e) => {
         if (gamePhase !== 'placement') return;
         const cell = e.target.closest('.cell');
@@ -288,14 +292,66 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.emit('player-ready');
     }
 
-    // --- 3. Host Controls ---
+    // --- 3. UI FLOW: MODE & DIFFICULTY SELECTION ---
+
+    lanModeBtn.addEventListener('click', () => {
+        gameMode = 'lan';
+        modeSelection.classList.add('hidden');
+        setupPanel.classList.remove('hidden');
+        addLog("LAN Multiplayer mode selected.");
+    });
+
+    aiModeBtn.addEventListener('click', () => {
+        gameMode = 'ai';
+        modeSelection.classList.add('hidden');
+        difficultySelection.classList.remove('hidden');
+        addLog("Single Player mode selected.");
+    });
+
+    easyBtn.addEventListener('click', () => {
+        aiDifficulty = 'easy';
+        difficultySelection.classList.add('hidden');
+        setupPanel.classList.remove('hidden');
+        addLog("Easy difficulty selected.");
+    });
+
+    mediumBtn.addEventListener('click', () => {
+        aiDifficulty = 'medium';
+        difficultySelection.classList.add('hidden');
+        setupPanel.classList.remove('hidden');
+        addLog("Medium difficulty selected.");
+    });
+
+    hardBtn.addEventListener('click', () => {
+        aiDifficulty = 'hard';
+        difficultySelection.classList.add('hidden');
+        setupPanel.classList.remove('hidden');
+        addLog("Hard difficulty selected.");
+    });
+
+    backToModeBtn.addEventListener('click', () => {
+        difficultySelection.classList.add('hidden');
+        modeSelection.classList.remove('hidden');
+        aiDifficulty = null;
+    });
+
+    backToDifficultyBtn.addEventListener('click', () => {
+        setupPanel.classList.add('hidden');
+        if (gameMode === 'ai') {
+            difficultySelection.classList.remove('hidden');
+        } else {
+            modeSelection.classList.remove('hidden');
+        }
+    });
+
+    // --- 4. Host Controls ---
     startSetupBtn.addEventListener('click', () => {
         const count = shipSelect.value;
         socket.emit('setup-game', count);
         setupPanel.classList.add('hidden');
     });
 
-    // --- 4. Battle Logic ---
+    // --- 5. Battle Logic ---
     enemyGrid.addEventListener('click', (e) => {
         if (gamePhase !== 'battle') return;
         
@@ -317,15 +373,28 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.emit('fire', id);
     });
 
-    // --- 5. Socket Events ---
+    // --- 6. Socket Events ---
+    
+    // SHOW MODE SELECTION IMMEDIATELY ON CONNECTION
+    socket.on('connect', () => {
+        statusDisplay.innerHTML = "Choose Your Game Mode";
+        modeSelection.classList.remove('hidden');
+    });
+
     socket.on('player-number', (num) => {
         playerNum = num;
         if (num === 0) {
-            statusDisplay.innerHTML = "You are the HOST.";
-            setupPanel.classList.remove('hidden');
+            // Host - keep mode selection visible if not already chosen
+            if (gameMode === null) {
+                statusDisplay.innerHTML = "Choose Your Game Mode";
+                modeSelection.classList.remove('hidden');
+            }
         } else {
+            // Guest - hide mode selection and wait
             statusDisplay.innerHTML = "Waiting for Host...";
             setupPanel.classList.add('hidden');
+            modeSelection.classList.add('hidden');
+            difficultySelection.classList.add('hidden');
         }
     });
 
@@ -340,8 +409,6 @@ document.addEventListener('DOMContentLoaded', () => {
         myShips = [];
         
         shipsToPlace = [];
-        // Generate ship sequence: 1, 1, 2, 2, 3... or just 1, 2, 3...
-        // For this logic, we use standard 1 -> Count
         for(let i = 1; i <= parseInt(count); i++) {
             shipsToPlace.push(i);
         }
@@ -352,7 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
         placementControls.classList.remove('hidden');
         statusDisplay.innerHTML = "Setup Phase";
         instructionText.innerText = `Place your Size ${shipsToPlace[0]} Ship`;
-        rotateBtn.innerText = "Rotate: Horizontal (R)"; // Reset label
+        rotateBtn.innerText = "Rotate: Horizontal (R)";
         
         addLog("Setup started! Place your ships.");
     });
@@ -390,7 +457,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (square.classList.contains('ship')) {
             square.classList.add('hit');
-            triggerExplosion(square); // EXPLOSION WHEN OPPONENT HITS YOUR SHIP
+            triggerExplosion(square);
             result = 'hit';
             
             const ship = myShips.find(s => s.location.includes(parseInt(id)));
@@ -409,7 +476,6 @@ document.addEventListener('DOMContentLoaded', () => {
             addLog(`Opponent missed at ${coord}.`);
         }
         
-        // Check if all of my ships have been sunk
         const allSunk = myShips.every(ship => ship.hits === ship.size);
         
         if (allSunk) {
@@ -438,7 +504,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (data.result === 'hit' || data.result === 'sunk') {
             square.classList.add('hit');
-            triggerExplosion(square); // EXPLOSION WHEN YOU HIT OPPONENT'S SHIP
+            triggerExplosion(square);
             if (data.result === 'sunk') {
                 addLog(`TARGET DESTROYED at ${coord}! Size-${data.sunkShipSize} ship eliminated!`, "log-success");
             } else {
@@ -472,39 +538,38 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('rematch-start', () => {
-        // Reset game state
         isGameOver = false;
         gamePhase = 'waiting';
         currentPlayer = 'user';
 
-        // Clear boards
         userSquares.forEach(sq => sq.className = 'cell');
         enemySquares.forEach(sq => sq.className = 'cell');
 
-        // Reset ships / placement state
         myShips = [];
         shipsToPlace = [];
         currentPlaceIndex = 0;
         isHorizontal = true;
         lastHoveredCell = null;
+        gameMode = null;
+        aiDifficulty = null;
 
-        // Reset UI
         hidePlayAgain();
         placementControls.classList.add('hidden'); 
         statusDisplay.style.color = "";
         instructionText.innerText = "";
         rotateBtn.innerText = "Rotate: Horizontal (R)";
 
-        // Host configures again, guest waits
         if (playerNum === 0) {
-            setupPanel.classList.remove('hidden');
-            statusDisplay.innerHTML = "You are the HOST. Choose ships and Configure Game.";
+            modeSelection.classList.remove('hidden');
+            statusDisplay.innerHTML = "Choose Your Game Mode";
         } else {
             setupPanel.classList.add('hidden');
+            modeSelection.classList.add('hidden');
+            difficultySelection.classList.add('hidden');
             statusDisplay.innerHTML = "Waiting for Host to configure...";
         }
 
-        addLog("Rematch ready.");
+        addLog("Rematch ready. Choose game mode.");
     });
 
 });
