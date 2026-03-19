@@ -282,6 +282,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function finishPlacement() {
+        console.log('FINISH PLACEMENT RAN');
+        console.log('EMITTING PLAYER-READY');
+        
         gamePhase = 'waiting_for_opponent';
         placementControls.classList.add('hidden');
         instructionText.innerText = "";
@@ -290,7 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
         addLog("All ships placed. Waiting for opponent...");
         statusDisplay.innerHTML = "Waiting for opponent...";
         socket.emit('player-ready');
-    }
+}
 
     // --- 3. UI FLOW: MODE & DIFFICULTY SELECTION ---
 
@@ -346,10 +349,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 4. Host Controls ---
     startSetupBtn.addEventListener('click', () => {
-        const count = shipSelect.value;
-        socket.emit('setup-game', count);
-        setupPanel.classList.add('hidden');
+    const count = parseInt(shipSelect.value);
+
+    socket.emit('setup-game', {
+        shipCount: count,
+        gameMode,
+        aiDifficulty
     });
+
+    setupPanel.classList.add('hidden');
+});
 
     // --- 5. Battle Logic ---
     enemyGrid.addEventListener('click', (e) => {
@@ -365,13 +374,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const coord = getCoordinate(id);
         addLog(`Firing at ${coord}...`);
+        console.log('PLAYER FIRED AT:', id);
         
         currentPlayer = 'enemy';
         statusDisplay.innerHTML = "Enemy's Turn";
         statusDisplay.style.color = "red";
         
         socket.emit('fire', id);
-    });
+});
 
     // --- 6. Socket Events ---
     
@@ -425,9 +435,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('game-start', () => {
+        console.log('RECEIVED GAME-START');
+
         gamePhase = 'battle';
-        statusDisplay.innerHTML = "BATTLE STARTED";
-        
+
+        if (gameMode === 'ai') {
+            currentPlayer = 'user';
+            statusDisplay.innerHTML = "YOUR TURN";
+            statusDisplay.style.color = "green";
+            addLog(`Battle Started! AI difficulty: ${aiDifficulty}. You fire first.`, "log-success");
+            return;
+        }
+
         if (playerNum === 0) {
             currentPlayer = 'user';
             statusDisplay.innerHTML = "YOUR TURN";
@@ -439,7 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
             statusDisplay.style.color = "red";
             addLog("Battle Started! Prepare defense.", "log-alert");
         }
-    });
+});
 
     socket.on('player-disconnected', () => {
         statusDisplay.innerHTML = "Opponent Disconnected";
@@ -449,6 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('opponent-fire', (id) => {
+        console.log('RECEIVED OPPONENT-FIRE:', id);
         if (isGameOver) return;
         const square = userSquares[id];
         const coord = getCoordinate(id);
@@ -499,6 +519,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('fire-reply', (data) => {
+        console.log('RECEIVED FIRE-REPLY:', data);
         const square = enemySquares[data.id];
         const coord = getCoordinate(data.id);
         
@@ -515,7 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
             addLog(`Shot missed at ${coord}.`);
         }
         
-        if (data.gameOver && data.winner === 'enemy') {
+        if (data.gameOver) {
             isGameOver = true;
             statusDisplay.innerHTML = "VICTORY - Enemy Fleet Destroyed!";
             statusDisplay.style.color = "green";
