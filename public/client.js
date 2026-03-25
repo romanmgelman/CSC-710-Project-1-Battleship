@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }, { once: true });
     }
 
-    // --- 1. Create Boards ---
+    // Create Boards ---
     function createBoard(grid, squares) {
         const corner = document.createElement('div');
         corner.classList.add('label');
@@ -167,7 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
     createBoard(userGrid, userSquares);
     createBoard(enemyGrid, enemySquares);
 
-    // --- 2. Placement Logic ---
+    // Placement Logic ---
     
     function getShipIndices(startIndex, size, horizontal) {
         const indices = [];
@@ -194,23 +194,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const size = shipsToPlace[currentPlaceIndex];
         const startIndex = parseInt(cell.dataset.id);
-        const indices = getShipIndices(startIndex, size, isHorizontal);
+        
+        const visualIndices = [];
+        let isOutOfBounds = false;
 
-        if (!indices) {
-            cell.classList.add('invalid-hover');
-            return;
+        for (let i = 0; i < size; i++) {
+            let index;
+            if (isHorizontal) {
+                index = startIndex + i;
+                // If it wraps to the next row, flag it and STOP adding visual blocks
+                if (Math.floor(startIndex / width) !== Math.floor(index / width)) {
+                    isOutOfBounds = true;
+                    continue; 
+                }
+            } else {
+                index = startIndex + (i * width);
+                // If it goes off the bottom, flag it and STOP adding visual blocks
+                if (index >= 100) {
+                    isOutOfBounds = true;
+                    continue; 
+                }
+            }
+            
+            visualIndices.push(index);
         }
 
-        let valid = true;
-        for (let idx of indices) {
-            if (userSquares[idx].classList.contains('ship')) {
-                valid = false;
-                break;
+        let isValid = !isOutOfBounds;
+
+        // If it fits on the board, check for overlaps with existing ships
+        if (isValid) {
+            for (let idx of visualIndices) {
+                if (userSquares[idx].classList.contains('ship')) {
+                    isValid = false;
+                    break;
+                }
             }
         }
 
-        indices.forEach(idx => {
-            userSquares[idx].classList.add(valid ? 'valid-hover' : 'invalid-hover');
+        // Apply the appropriate class to the segments that fit on the board
+        visualIndices.forEach(idx => {
+            userSquares[idx].classList.add(isValid ? 'valid-hover' : 'invalid-hover');
         });
     }
 
@@ -296,12 +319,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (gameMode === 'ai' && aiDifficulty === 'hard') {
             const shipLocations = myShips.flatMap(ship => ship.location);
             socket.emit('player-ready', { hardMode: true, shipLocations });
+        } else if (gameMode === 'ai' && aiDifficulty === 'medium') {
+            socket.emit('player-ready', { mediumMode: true, myShips });
         } else {
             socket.emit('player-ready'); // Existing behavior unchanged
         }
 }
 
-    // --- 3. UI FLOW: MODE & DIFFICULTY SELECTION ---
+    // UI FLOW: MODE & DIFFICULTY SELECTION ---
 
     lanModeBtn.addEventListener('click', () => {
         gameMode = 'lan';
@@ -312,7 +337,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     aiModeBtn.addEventListener('click', () => {
         gameMode = 'ai';
-        modeSelection.classList.add('hidden');
+        playerNum = 0;
+		modeSelection.classList.add('hidden');
         difficultySelection.classList.remove('hidden');
         addLog("Single Player mode selected.");
     });
@@ -366,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupPanel.classList.add('hidden');
 });
 
-    // --- 5. Battle Logic ---
+    // Battle Logic ---
     enemyGrid.addEventListener('click', (e) => {
         if (gamePhase !== 'battle') return;
         
@@ -387,9 +413,7 @@ document.addEventListener('DOMContentLoaded', () => {
         statusDisplay.style.color = "red";
         
         socket.emit('fire', id);
-});
-
-    // --- 6. Socket Events ---
+	});
     
     // SHOW MODE SELECTION IMMEDIATELY ON CONNECTION
     socket.on('connect', () => {
@@ -464,7 +488,7 @@ document.addEventListener('DOMContentLoaded', () => {
             statusDisplay.style.color = "red";
             addLog("Battle Started! Prepare defense.", "log-alert");
         }
-});
+	});
 
     socket.on('player-disconnected', () => {
         statusDisplay.innerHTML = "Opponent Disconnected";
@@ -565,6 +589,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('rematch-start', () => {
+        console.log("REMATCH START. Mode:", gameMode, "| Player:", playerNum);
+
         isGameOver = false;
         gamePhase = 'waiting';
         currentPlayer = 'user';
@@ -577,26 +603,28 @@ document.addEventListener('DOMContentLoaded', () => {
         currentPlaceIndex = 0;
         isHorizontal = true;
         lastHoveredCell = null;
-        gameMode = null;
-        aiDifficulty = null;
 
+        // Reset UI Elements
         hidePlayAgain();
         placementControls.classList.add('hidden'); 
         statusDisplay.style.color = "";
         instructionText.innerText = "";
         rotateBtn.innerText = "Rotate: Horizontal (R)";
 
+        // FORCE hide the Mode and Difficulty menus
+        modeSelection.classList.add('hidden');
+        difficultySelection.classList.add('hidden');
+
         if (playerNum === 0) {
-            modeSelection.classList.remove('hidden');
-            statusDisplay.innerHTML = "Choose Your Game Mode";
+            // Player 0 (Host / Solo Player) always goes straight to Setup
+            setupPanel.classList.remove('hidden');
+            statusDisplay.innerHTML = "Game Setup";
         } else {
+            // Player 1 (Guest) goes to the waiting screen
             setupPanel.classList.add('hidden');
-            modeSelection.classList.add('hidden');
-            difficultySelection.classList.add('hidden');
             statusDisplay.innerHTML = "Waiting for Host to configure...";
         }
 
-        addLog("Rematch ready. Choose game mode.");
+        addLog("Rematch ready. Configuring next round...");
     });
-
 });

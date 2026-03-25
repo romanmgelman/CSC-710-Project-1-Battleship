@@ -75,6 +75,21 @@ function getRandomAvailableShot(shotsTaken) {
     return available[Math.floor(Math.random() * available.length)];
 }
 
+// Helper to get valid orthogonal adjacent cells for Medium AI
+function getAdjacent(index) {
+    const adjacent = [];
+    const width = 10;
+    const row = Math.floor(index / width);
+    const col = index % width;
+
+    if (row > 0) adjacent.push(index - width); // up
+    if (row < width - 1) adjacent.push(index + width); // down
+    if (col > 0) adjacent.push(index - 1); // left
+    if (col < width - 1) adjacent.push(index + 1); // right
+
+    return adjacent;
+}
+
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
@@ -105,7 +120,7 @@ io.on('connection', (socket) => {
         waitingPlayer = socket;
     }
 
-    // --- PHASE 1: HOST CONFIGURES GAME ---
+    // --- HOST CONFIGURES GAME ---
     socket.on('setup-game', (config) => {
         console.log('SETUP-GAME RECEIVED:', config);
 
@@ -126,7 +141,9 @@ io.on('connection', (socket) => {
                 gameMode: 'ai',
                 aiDifficulty: aiDifficulty || 'easy',
                 aiShips: placeAIShips(parseInt(shipCount)),
-                aiShotsTaken: []
+                aiShotsTaken: [],
+				mediumTargets: [],
+				userShips: []
             };
 
             console.log('CREATED AI ROOM:', soloRoom, roomData[soloRoom]);
@@ -147,9 +164,19 @@ io.on('connection', (socket) => {
 
             io.in(gameRoom).emit('enter-placement-mode', parseInt(shipCount));
         }
-});
+	});
 
-    // --- PHASE 2: PLAYERS READY ---
+	// Forward the result back to the attacking player
+	socket.on('fire-reply', (data) => {
+        const rooms = Array.from(socket.rooms);
+        const gameRoom = rooms.find(r => r !== socket.id);
+
+        if (gameRoom) {
+            socket.to(gameRoom).emit('fire-reply', data);
+        }
+    });
+
+    // --- LAYERS READY ---
     socket.on('player-ready', (data) => {
         console.log('PLAYER-READY RECEIVED FOR:', socket.id);
 
@@ -162,7 +189,7 @@ io.on('connection', (socket) => {
 
         if (gameRoom && roomData[gameRoom]) {
             roomData[gameRoom].readyCount++;
-            // NEW: Store hard mode targets
+            // Store hard mode targets
             if (data && data.hardMode && data.shipLocations) {
                 const shuffled = [...data.shipLocations];
                 for (let i = shuffled.length - 1; i > 0; i--) {
@@ -171,6 +198,12 @@ io.on('connection', (socket) => {
                 }
                 roomData[gameRoom].hardModeTargets = shuffled;
                 roomData[gameRoom].hardModeIndex = 0;
+            }
+
+			// Handle Medium mode setup
+            if (data && data.mediumMode && data.myShips) {
+                roomData[gameRoom].userShips = data.myShips;
+                roomData[gameRoom].mediumTargets = [];
             }
             console.log('ROOM DATA:', roomData[gameRoom]);
 
@@ -202,10 +235,17 @@ io.on('connection', (socket) => {
             room.rematchCount = 0;
             room.aiShips = placeAIShips(room.shipCount);
             room.aiShotsTaken = [];
-            room.hardModeTargets = []; // NEW
+            room.hardModeTargets = []; 
             room.hardModeIndex = 0;
+            room.mediumTargets = []; 
+            room.userShips = [];     
 
-            io.to(socket.id).emit('rematch-start', room.shipCount);
+            // SEND THE AI CONTEXT BACK TO THE CLIENT
+            io.to(socket.id).emit('rematch-start', { 
+                mode: 'ai', 
+                shipCount: room.shipCount, 
+                difficulty: room.aiDifficulty 
+            });
             return;
         }
 
@@ -216,14 +256,18 @@ io.on('connection', (socket) => {
             room.rematchCount = 0;
 
             const shipCount = room.shipCount ?? 5;
-            io.in(gameRoom).emit('rematch-start', shipCount);
+            // SEND THE LAN CONTEXT TO BOTH PLAYERS
+            io.in(gameRoom).emit('rematch-start', { 
+                mode: 'lan', 
+                shipCount: shipCount 
+            });
         } else {
             socket.to(gameRoom).emit('rematch-waiting');
             socket.emit('rematch-requested');
         }
-});
+    });
 
-    // --- PHASE 3: BATTLE ---
+    // --- BATTLE ---
     socket.on('fire', (id) => {
         const shotId = parseInt(id);
         const rooms = Array.from(socket.rooms);
@@ -266,13 +310,46 @@ io.on('connection', (socket) => {
 
             if (allSunk) return;
 
-            // NEW: Hard mode uses known locations, everything else uses existing logic
+            // Hard mode uses known locations, everything else uses existing logic
             let aiShot;
             if (room.aiDifficulty === 'hard' && room.hardModeTargets && room.hardModeIndex < room.hardModeTargets.length) {
                 aiShot = room.hardModeTargets[room.hardModeIndex++];
                 console.log('HARD MODE AI SHOT:', aiShot);
+            } else if (room.aiDifficulty === 'medium') {
+                aiShot = null;
+                
+                // Try to shoot from the adjacent targets queue
+                while (room.mediumTargets.length > 0) {
+                    const potentialShot = room.mediumTargets.shift();
+                    if (!room.aiShotsTaken.includes(potentialShot)) {
+                        aiShot = potentialShot;
+                        break;
+                    }
+                }
+
+                // If no valid queued targets, pick a random shot
+                if (aiShot === null) {
+                    aiShot = getRandomAvailableShot(room.aiShotsTaken);
+                }
+
+                // Evaluate the shot against userShips to populate the queue for future turns
+                if (aiShot !== null && room.userShips) {
+                    const hitShip = room.userShips.find(s => s.location.includes(aiShot));
+                    if (hitShip) {
+                        hitShip.hits = (hitShip.hits || 0) + 1;
+                        if (hitShip.hits === hitShip.size) {
+                            // Sunk! Clear the queue to resume random firing
+                            room.mediumTargets = [];
+                        } else {
+                            // Hit but not sunk! Add valid adjacent squares to target queue
+                            const adj = getAdjacent(aiShot);
+                            room.mediumTargets.push(...adj.filter(x => !room.aiShotsTaken.includes(x)));
+                        }
+                    }
+                }
+                console.log('MEDIUM AI SHOT:', aiShot);
             } else {
-                aiShot = getRandomAvailableShot(room.aiShotsTaken); // Existing function untouched
+                aiShot = getRandomAvailableShot(room.aiShotsTaken);
                 console.log('AI SELECTED SHOT:', aiShot);
             }
 
@@ -289,7 +366,7 @@ io.on('connection', (socket) => {
         }
 
         socket.to(gameRoom).emit('opponent-fire', shotId);
-});
+	});
 
     // --- CLEANUP ---
     socket.on('disconnecting', () => {
