@@ -17,6 +17,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     createBubbles();
+    const explosionSound = new Audio('sounds/explosion.mp3');
+    const splashSound = new Audio('sounds/splash.mp3');
+    explosionSound.volume = 0.3;
+    splashSound.volume = 0.2;
 
     const socket = io();
     const userGrid = document.querySelector('#user-grid');
@@ -50,6 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Rematch UI
     const rematchPanel = document.querySelector('#rematch-panel');
     const playAgainBtn = document.querySelector('#play-again-btn');
+    const statsPanel = document.querySelector('#stats-panel');
     
     // GAME STATE
     let isGameOver = false;
@@ -59,6 +64,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let myShips = [];
     let gameMode = null; // 'lan' or 'ai'
     let aiDifficulty = null; // 'easy', 'medium', or 'hard'
+    let shotsFired = 0;
+    let shotsHit = 0;
+    let shotsMissed = 0;
     
     // PLACEMENT STATE
     let shipsToPlace = []; 
@@ -88,6 +96,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const row = Math.floor(index / width);
         const col = index % width;
         return `${letters[row]}${col + 1}`;
+    }
+    function updateStats() {
+    document.getElementById('stat-shots').textContent = shotsFired;
+    document.getElementById('stat-hits').textContent = shotsHit;
+    document.getElementById('stat-misses').textContent = shotsMissed;
+    const accuracy = shotsFired > 0 ? Math.round((shotsHit / shotsFired) * 100) : 0;
+    document.getElementById('stat-accuracy').textContent = accuracy + '%';
     }
 
     // EXPLOSION ANIMATION FUNCTION
@@ -468,6 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('RECEIVED GAME-START');
 
         gamePhase = 'battle';
+        statsPanel.classList.remove('hidden');
 
         if (gameMode === 'ai') {
             currentPlayer = 'user';
@@ -556,6 +572,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.result === 'hit' || data.result === 'sunk') {
             square.classList.add('hit');
             triggerExplosion(square);
+            explosionSound.currentTime = 0;
+            explosionSound.play().catch(e => {});
+            shotsFired++;          
+            shotsHit++;            
+            updateStats();
             if (data.result === 'sunk') {
                 addLog(`TARGET DESTROYED at ${coord}! Size-${data.sunkShipSize} ship eliminated!`, "log-success");
             } else {
@@ -563,6 +584,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else {
             square.classList.add('miss');
+            splashSound.currentTime = 0;
+            splashSound.play().catch(e => {});
+            shotsFired++;
+            shotsMissed++;        
+            updateStats();
             addLog(`Shot missed at ${coord}.`);
         }
         
@@ -592,6 +618,10 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("REMATCH START. Mode:", gameMode, "| Player:", playerNum);
 
         isGameOver = false;
+        shotsFired = 0;       
+        shotsHit = 0;        
+        shotsMissed = 0;  
+    statsPanel.classList.add('hidden');
         gamePhase = 'waiting';
         currentPlayer = 'user';
 
