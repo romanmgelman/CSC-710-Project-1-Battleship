@@ -150,7 +150,7 @@ io.on('connection', (socket) => {
 });
 
     // --- PHASE 2: PLAYERS READY ---
-    socket.on('player-ready', () => {
+    socket.on('player-ready', (data) => {
         console.log('PLAYER-READY RECEIVED FOR:', socket.id);
 
         const soloRoom = `ai#${socket.id}`;
@@ -162,6 +162,16 @@ io.on('connection', (socket) => {
 
         if (gameRoom && roomData[gameRoom]) {
             roomData[gameRoom].readyCount++;
+            // NEW: Store hard mode targets
+            if (data && data.hardMode && data.shipLocations) {
+                const shuffled = [...data.shipLocations];
+                for (let i = shuffled.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                }
+                roomData[gameRoom].hardModeTargets = shuffled;
+                roomData[gameRoom].hardModeIndex = 0;
+            }
             console.log('ROOM DATA:', roomData[gameRoom]);
 
             if (roomData[gameRoom].gameMode === 'ai') {
@@ -192,6 +202,8 @@ io.on('connection', (socket) => {
             room.rematchCount = 0;
             room.aiShips = placeAIShips(room.shipCount);
             room.aiShotsTaken = [];
+            room.hardModeTargets = []; // NEW
+            room.hardModeIndex = 0;
 
             io.to(socket.id).emit('rematch-start', room.shipCount);
             return;
@@ -254,8 +266,15 @@ io.on('connection', (socket) => {
 
             if (allSunk) return;
 
-            const aiShot = getRandomAvailableShot(room.aiShotsTaken);
-            console.log('AI SELECTED SHOT:', aiShot);
+            // NEW: Hard mode uses known locations, everything else uses existing logic
+            let aiShot;
+            if (room.aiDifficulty === 'hard' && room.hardModeTargets && room.hardModeIndex < room.hardModeTargets.length) {
+                aiShot = room.hardModeTargets[room.hardModeIndex++];
+                console.log('HARD MODE AI SHOT:', aiShot);
+            } else {
+                aiShot = getRandomAvailableShot(room.aiShotsTaken); // Existing function untouched
+                console.log('AI SELECTED SHOT:', aiShot);
+            }
 
             if (aiShot === null) return;
 
