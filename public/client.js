@@ -292,7 +292,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         addLog("All ships placed. Waiting for opponent...");
         statusDisplay.innerHTML = "Waiting for opponent...";
-        socket.emit('player-ready');
+        // Send ship locations ONLY for hard mode
+        if (gameMode === 'ai' && aiDifficulty === 'hard') {
+            const shipLocations = myShips.flatMap(ship => ship.location);
+            socket.emit('player-ready', { hardMode: true, shipLocations });
+        } else {
+            socket.emit('player-ready'); // Existing behavior unchanged
+        }
 }
 
     // --- 3. UI FLOW: MODE & DIFFICULTY SELECTION ---
