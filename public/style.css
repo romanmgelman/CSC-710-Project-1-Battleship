@@ -1060,3 +1060,53 @@ button:active {
         grid-template-rows: 25px repeat(10, 30px);
     }
 }
+
+/* ========================================
+   PROJECTILE ANIMATION
+   ======================================== */
+
+.projectile {
+    position: fixed;
+    width: 14px;
+    height: 14px;
+    background: radial-gradient(circle at 40% 40%, #ffd700, #ff4500, #cc0000);
+    border-radius: 50%;
+    z-index: 10000;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: left 0.55s ease-in, top 0.55s ease-in;
+    box-shadow:
+        0 0 8px 3px rgba(255, 140, 0, 0.9),
+        0 0 20px 6px rgba(255, 69, 0, 0.6),
+        0 0 40px 10px rgba(255, 0, 0, 0.3);
+    animation: projectile-pulse 0.15s ease-in-out infinite alternate;
+}
+
+@keyframes projectile-pulse {
+    0% {
+        box-shadow:
+            0 0 8px 3px rgba(255, 140, 0, 0.9),
+            0 0 20px 6px rgba(255, 69, 0, 0.6),
+            0 0 40px 10px rgba(255, 0, 0, 0.3);
+    }
+    100% {
+        box-shadow:
+            0 0 12px 5px rgba(255, 200, 0, 1),
+            0 0 25px 10px rgba(255, 100, 0, 0.7),
+            0 0 50px 15px rgba(255, 0, 0, 0.4);
+    }
+}
+
+/* Trailing glow behind the projectile */
+.projectile::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 30px;
+    height: 8px;
+    background: linear-gradient(to left, rgba(255, 140, 0, 0.8), transparent);
+    border-radius: 50%;
+    transform: translate(-100%, -50%);
+    filter: blur(3px);
+}

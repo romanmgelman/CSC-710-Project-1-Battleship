@@ -74,6 +74,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let isHorizontal = true;
     let lastHoveredCell = null;
 
+    // PROJECTILE STATE
+    let projectileInFlight = false;
+    let pendingFireReply = null;
+
     // --- Helpers ---
     function addLog(msg, className) {
         const p = document.createElement('p');
@@ -150,6 +154,88 @@ document.addEventListener('DOMContentLoaded', () => {
             cell.classList.remove('explosion');
             cell.removeEventListener('animationend', handler);
         }, { once: true });
+    }
+
+    // PROJECTILE ANIMATION FUNCTION
+    function launchProjectile(targetCell, onComplete) {
+        const projectile = document.createElement('div');
+        projectile.className = 'projectile';
+
+        // Start from center of user's grid
+        const userRect = userGrid.getBoundingClientRect();
+        const startX = userRect.left + userRect.width / 2;
+        const startY = userRect.top;
+
+        // End at the target cell
+        const targetRect = targetCell.getBoundingClientRect();
+        const endX = targetRect.left + targetRect.width / 2;
+        const endY = targetRect.top + targetRect.height / 2;
+
+        // Position at start
+        projectile.style.left = startX + 'px';
+        projectile.style.top = startY + 'px';
+
+        document.body.appendChild(projectile);
+
+        // Force browser to register the start position before animating
+        projectile.offsetHeight;
+
+        // Animate to target
+        projectile.style.left = endX + 'px';
+        projectile.style.top = endY + 'px';
+
+        projectile.addEventListener('transitionend', () => {
+            projectile.remove();
+            onComplete();
+        }, { once: true });
+
+        // Safety fallback in case transitionend doesn't fire
+        setTimeout(() => {
+            if (document.body.contains(projectile)) {
+                projectile.remove();
+                onComplete();
+            }
+        }, 1000);
+    }
+
+    // PROCESS FIRE REPLY (extracted so both immediate and buffered paths use the same logic)
+    function processFireReply(data) {
+        const square = enemySquares[data.id];
+        const coord = getCoordinate(data.id);
+
+        if (data.result === 'hit' || data.result === 'sunk') {
+            square.classList.add('hit');
+            triggerExplosion(square);
+            explosionSound.currentTime = 0;
+            explosionSound.play().catch(e => {});
+            shotsFired++;
+            shotsHit++;
+            updateStats();
+            if (data.result === 'sunk') {
+                addLog(`TARGET DESTROYED at ${coord}! Size-${data.sunkShipSize} ship eliminated!`, "log-success");
+            } else {
+                addLog(`Direct HIT at ${coord}!`, "log-success");
+            }
+        } else {
+            square.classList.add('miss');
+            splashSound.currentTime = 0;
+            splashSound.play().catch(e => {});
+            shotsFired++;
+            shotsMissed++;
+            updateStats();
+            addLog(`Shot missed at ${coord}.`);
+        }
+
+        if (data.gameOver) {
+            isGameOver = true;
+            statusDisplay.innerHTML = "VICTORY - Enemy Fleet Destroyed!";
+            statusDisplay.style.color = "green";
+            addLog("═══════════════════════════════", "log-success");
+            addLog("ALL ENEMY SHIPS DESTROYED!", "log-success");
+            addLog("YOU WON THE BATTLE!", "log-success");
+            addLog("═══════════════════════════════", "log-success");
+            showPlayAgain();
+        }
     }
 
     // Create Boards ---
@@ -346,8 +432,18 @@ document.addEventListener('DOMContentLoaded', () => {
     lanModeBtn.addEventListener('click', () => {
         gameMode = 'lan';
         modeSelection.classList.add('hidden');
-        setupPanel.classList.remove('hidden');
-        addLog("LAN Multiplayer mode selected.");
+        
+        if (playerNum >= 0) {
+            // Already paired with another player - go straight to setup
+            setupPanel.classList.remove('hidden');
+            statusDisplay.innerHTML = "Game Setup (You are Host)";
+            addLog("LAN Multiplayer mode selected.");
+        } else {
+            // Not paired yet - need to wait for a second player
+            statusDisplay.innerHTML = "Waiting for opponent to join...";
+            statusDisplay.style.color = "orange";
+            addLog("LAN mode selected. Waiting for another player to connect...");
+        }
     });
 
     aiModeBtn.addEventListener('click', () => {
@@ -416,6 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const id = cell.dataset.id;
         
         if (isGameOver) return;
+        if (projectileInFlight) return; // Don't allow firing while a shot is in the air
         if (currentPlayer === 'enemy') return addLog("It is NOT your turn.");
         if (cell.classList.contains('hit') || cell.classList.contains('miss')) return;
 
@@ -426,7 +523,21 @@ document.addEventListener('DOMContentLoaded', () => {
         currentPlayer = 'enemy';
         statusDisplay.innerHTML = "Enemy's Turn";
         statusDisplay.style.color = "red";
-        
+
+        // Launch the projectile, then emit fire when it lands
+        projectileInFlight = true;
+        pendingFireReply = null;
+
+        launchProjectile(cell, () => {
+            projectileInFlight = false;
+            // If the server already replied while the projectile was in flight, process now
+            if (pendingFireReply) {
+                const data = pendingFireReply;
+                pendingFireReply = null;
+                processFireReply(data);
+            }
+        });
+
         socket.emit('fire', id);
 	});
     
@@ -439,23 +550,40 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('player-number', (num) => {
         playerNum = num;
         if (num === 0) {
-            // Host - keep mode selection visible if not already chosen
+            addLog("You are the Host (Player 1).");
             if (gameMode === null) {
-                statusDisplay.innerHTML = "Choose Your Game Mode";
+                // Haven't chosen a mode yet - show mode selection
+                statusDisplay.innerHTML = "Choose Your Game Mode (You are Host)";
                 modeSelection.classList.remove('hidden');
+            } else if (gameMode === 'lan') {
+                // Already chose LAN while waiting - now paired, show setup
+                setupPanel.classList.remove('hidden');
+                statusDisplay.innerHTML = "Game Setup (You are Host)";
+                statusDisplay.style.color = "";
             }
         } else {
-            // Guest - hide mode selection and wait
-            statusDisplay.innerHTML = "Waiting for Host...";
+            // Guest - they are always in LAN mode
+            gameMode = 'lan';
+            statusDisplay.innerHTML = "Waiting for Host to configure...";
             setupPanel.classList.add('hidden');
             modeSelection.classList.add('hidden');
             difficultySelection.classList.add('hidden');
+            addLog("Connected as Player 2 (Guest). Waiting for Host...");
         }
     });
 
     socket.on('players-connected', () => {
-        if(playerNum === 0) addLog("Player 2 Connected.");
-        else addLog("Connected to Host.");
+        if (playerNum === 0) {
+            addLog("Player 2 Connected!");
+            // If host already selected LAN before pairing, show setup now
+            if (gameMode === 'lan' && setupPanel.classList.contains('hidden')) {
+                setupPanel.classList.remove('hidden');
+                statusDisplay.innerHTML = "Game Setup (You are Host)";
+                statusDisplay.style.color = "";
+            }
+        } else {
+            addLog("Connected to Host.");
+        }
     });
 
     socket.on('enter-placement-mode', (count) => {
@@ -566,42 +694,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('fire-reply', (data) => {
         console.log('RECEIVED FIRE-REPLY:', data);
-        const square = enemySquares[data.id];
-        const coord = getCoordinate(data.id);
-        
-        if (data.result === 'hit' || data.result === 'sunk') {
-            square.classList.add('hit');
-            triggerExplosion(square);
-            explosionSound.currentTime = 0;
-            explosionSound.play().catch(e => {});
-            shotsFired++;          
-            shotsHit++;            
-            updateStats();
-            if (data.result === 'sunk') {
-                addLog(`TARGET DESTROYED at ${coord}! Size-${data.sunkShipSize} ship eliminated!`, "log-success");
-            } else {
-                addLog(`Direct HIT at ${coord}!`, "log-success");
-            }
-        } else {
-            square.classList.add('miss');
-            splashSound.currentTime = 0;
-            splashSound.play().catch(e => {});
-            shotsFired++;
-            shotsMissed++;        
-            updateStats();
-            addLog(`Shot missed at ${coord}.`);
+
+        // If projectile is still flying, buffer the result for later
+        if (projectileInFlight) {
+            pendingFireReply = data;
+            return;
         }
-        
-        if (data.gameOver) {
-            isGameOver = true;
-            statusDisplay.innerHTML = "VICTORY - Enemy Fleet Destroyed!";
-            statusDisplay.style.color = "green";
-            addLog("═══════════════════════════════", "log-success");
-            addLog("ALL ENEMY SHIPS DESTROYED!", "log-success");
-            addLog("YOU WON THE BATTLE!", "log-success");
-            addLog("═══════════════════════════════", "log-success");
-            showPlayAgain();
-        }
+
+        // Otherwise process immediately
+        processFireReply(data);
     });
 
     socket.on('rematch-requested', () => {
@@ -633,6 +734,8 @@ document.addEventListener('DOMContentLoaded', () => {
         currentPlaceIndex = 0;
         isHorizontal = true;
         lastHoveredCell = null;
+        projectileInFlight = false;
+        pendingFireReply = null;
 
         // Reset UI Elements
         hidePlayAgain();
@@ -648,7 +751,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (playerNum === 0) {
             // Player 0 (Host / Solo Player) always goes straight to Setup
             setupPanel.classList.remove('hidden');
-            statusDisplay.innerHTML = "Game Setup";
+            statusDisplay.innerHTML = gameMode === 'ai' ? "Game Setup" : "Game Setup (You are Host)";
         } else {
             // Player 1 (Guest) goes to the waiting screen
             setupPanel.classList.add('hidden');
